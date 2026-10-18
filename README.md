@@ -8,10 +8,17 @@ Paste a video, get a smaller MP4. No uploads, no accounts, no tracking — compr
 
 ## How to use
 
+**Compress tab:**
 1. **Ctrl+V** a video anywhere on the page (or drag & drop it, or tap to pick a file on mobile).
 2. Pick a target size — **~8 MB**, **~16 MB**, or **~25 MB** presets — or dial in a custom bitrate with the slider. Optionally cap the resolution (720p / 1080p / original).
 3. Hit **Compress**, watch the progress bar.
 4. See original vs compressed size and % saved, then **Download** the MP4.
+
+**Make GIF tab:**
+1. Paste/drop/pick a video (the selected file is shared between tabs).
+2. Set **start time**, **duration** (1–10 s), **width** (320/480/640), and **FPS** (10/12/15).
+3. Hit **Make GIF** — it encodes with the high-quality two-pass palette method.
+4. Preview the animated GIF, check its size, then **Download** the .gif. Short GIFs stay small enough to upload straight to Reddit, where they play animated inline.
 
 ## Privacy
 
