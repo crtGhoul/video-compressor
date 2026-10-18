@@ -112,6 +112,20 @@
   .fine{ color:var(--dim); font-size:12px; margin-top:14px; text-align:center; line-height:1.5; }
   video#prev{ width:100%; border-radius:12px; margin-top:12px; background:#000; max-height:260px; display:none; }
   .actions{ margin-top:16px; display:grid; gap:10px; }
+  .tabs{
+    display:flex; gap:6px; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:6px; margin-bottom:16px;
+  }
+  .tab{
+    flex:1; border:0; background:transparent; color:var(--dim); font-family:inherit;
+    font-size:15px; font-weight:700; padding:10px; border-radius:10px; cursor:pointer;
+  }
+  .tab.on{ background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#fff; }
+  input[type=number]{
+    width:100%; background:var(--card2); color:var(--txt); border:1px solid var(--line);
+    border-radius:10px; padding:11px; font-size:15px; font-family:inherit;
+  }
+  img#gifPrev{ width:100%; border-radius:12px; margin-top:12px; background:#000; display:none; }
 </style>
 </head>
 <body>
@@ -122,6 +136,11 @@
   <div class="privacy">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
     <span><b>100% private.</b> Compression runs entirely in your browser with ffmpeg.wasm — your video is never uploaded to any server.</span>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Mode">
+    <button type="button" class="tab on" id="tabComp" role="tab" aria-selected="true">Compress</button>
+    <button type="button" class="tab" id="tabGif" role="tab" aria-selected="false">Make GIF</button>
   </div>
 
   <div id="drop" role="button" tabindex="0" aria-label="Paste, drop, or pick a video">
@@ -136,6 +155,7 @@
     <div class="row"><span class="dim">Original size</span><span id="fsize" class="mono"></span></div>
     <video id="prev" muted playsinline controls></video>
 
+    <div id="compPanel">
     <label class="lbl">Target size</label>
     <div class="presets">
       <button type="button" class="preset" data-mb="8">Squeeze<small>~8 MB · chats</small></button>
@@ -157,6 +177,38 @@
       <button type="button" class="btn" id="go">Compress</button>
       <a class="btn" id="dl" hidden>Download compressed MP4</a>
       <button type="button" class="btn ghost" id="again" hidden>Compress another video</button>
+    </div>
+    </div>
+
+    <div id="gifPanel" hidden>
+      <label class="lbl" for="gStart">Start time (seconds)</label>
+      <input type="number" id="gStart" min="0" step="0.5" value="0" />
+
+      <label class="lbl" for="gDur">Duration — <span id="gDurVal" class="mono" style="color:var(--txt)">4s</span></label>
+      <input type="range" id="gDur" min="1" max="10" step="1" value="4" />
+
+      <label class="lbl" for="gWidth">Width</label>
+      <select id="gWidth">
+        <option value="320">320 px</option>
+        <option value="480" selected>480 px</option>
+        <option value="640">640 px</option>
+      </select>
+
+      <label class="lbl" for="gFps">Frame rate</label>
+      <select id="gFps">
+        <option value="10">10 fps</option>
+        <option value="12" selected>12 fps</option>
+        <option value="15">15 fps</option>
+      </select>
+
+      <div class="actions">
+        <button type="button" class="btn" id="goGif">Make GIF</button>
+        <a class="btn" id="dlGif" hidden>Download GIF</a>
+        <button type="button" class="btn ghost" id="gifAgain" hidden>Use another video</button>
+      </div>
+
+      <img id="gifPrev" alt="Your GIF preview" />
+      <div class="row" id="gifSizeRow" hidden style="margin-top:10px"><span class="dim">GIF size</span><span id="gifSize" class="mono"></span></div>
     </div>
 
     <div id="status" class="dim" role="status" aria-live="polite"></div>
@@ -186,9 +238,14 @@
   var drop=$('drop'), fileInp=$('file'), job=$('job'), go=$('go'), dl=$('dl'), again=$('again'),
       statusEl=$('status'), bar=$('bar'), barwrap=$('barwrap'),
       stats=$('stats'), toastEl=$('toast'), prev=$('prev'), br=$('br'), brval=$('brval'), res=$('res');
+  var tabComp=$('tabComp'), tabGif=$('tabGif'), compPanel=$('compPanel'), gifPanel=$('gifPanel'),
+      gStart=$('gStart'), gDur=$('gDur'), gDurVal=$('gDurVal'), gWidth=$('gWidth'), gFps=$('gFps'),
+      goGif=$('goGif'), dlGif=$('dlGif'), gifAgain=$('gifAgain'), gifPrev=$('gifPrev'),
+      gifSizeRow=$('gifSizeRow'), gifSize=$('gifSize');
 
   var curFile=null, duration=0, ffmpeg=null, FFmpegClass=null,
       engineLoading=null, busy=false, lastOutURL=null, prevURL=null, outName='';
+  var mode='compress', busyLabel='Compressing', gifOutURL=null, gifName='';
 
   function mb(b){ return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
 
@@ -238,14 +295,14 @@
       inst.on('progress', function(e){
         if(busy && e && typeof e.progress==='number' && e.progress>=0){
           setBar(Math.min(1, e.progress));
-          setStatus('Compressing… '+Math.round(e.progress*100)+'%');
+          setStatus(busyLabel+'… '+Math.round(e.progress*100)+'%');
         }
       });
       var classWorkerURL = await buildWorkerURL();
       await inst.load({ classWorkerURL: classWorkerURL, coreURL: CORE, wasmURL: WASM });
       ffmpeg = inst; engineLoading = null;
       setBar(null);
-      if(!busy) setStatus('Engine ready — hit Compress.');
+      if(!busy) setStatus(mode==='gif' ? 'Engine ready — hit Make GIF.' : 'Engine ready — hit Compress.');
     })().catch(function(err){
       engineLoading=null; setBar(null);
       setStatus('Engine failed to load: '+((err&&err.message)||err));
@@ -308,6 +365,9 @@
     stats.hidden=true; dl.hidden=true; setBar(null); setStatus('Reading video…');
     if(lastOutURL){ URL.revokeObjectURL(lastOutURL); lastOutURL=null; }
     if(prevURL){ URL.revokeObjectURL(prevURL); prevURL=null; }
+    if(gifOutURL){ URL.revokeObjectURL(gifOutURL); gifOutURL=null; }
+    dlGif.hidden=true; gifAgain.hidden=true; gifSizeRow.hidden=true;
+    gifPrev.style.display='none'; gifPrev.removeAttribute('src');
 
     prevURL=URL.createObjectURL(f);
     prev.style.display='block';
@@ -322,7 +382,8 @@
     probe.then(function(){
       var on=document.querySelector('.preset.on');
       applyPreset(on ? +on.getAttribute('data-mb') : 16);
-      setStatus(duration ? 'Ready — hit Compress.' : 'Ready — hit Compress. (Length unknown, using fixed bitrate.)');
+      if(mode==='gif') setStatus('Ready — hit Make GIF.');
+      else setStatus(duration ? 'Ready — hit Compress.' : 'Ready — hit Compress. (Length unknown, using fixed bitrate.)');
       job.scrollIntoView({behavior:'smooth', block:'nearest'});
       warmEngine().catch(function(){});
     });
@@ -330,7 +391,7 @@
 
   async function compress(){
     if(!curFile || busy) return;
-    busy=true; go.disabled=true; dl.hidden=true; stats.hidden=true; again.hidden=true;
+    busy=true; busyLabel='Compressing'; go.disabled=true; dl.hidden=true; stats.hidden=true; again.hidden=true;
     try{
       await warmEngine();
       var vbr=+br.value, resCap=+res.value;
@@ -438,11 +499,89 @@
     toast('Paste or pick another video.');
   });
 
+  // ---- tabs + GIF mode ----
+  function setMode(m){
+    if(busy){ toast('Working — hang on…'); return; }
+    mode=m;
+    var gif=(m==='gif');
+    tabComp.classList.toggle('on', !gif);
+    tabGif.classList.toggle('on', gif);
+    tabComp.setAttribute('aria-selected', String(!gif));
+    tabGif.setAttribute('aria-selected', String(gif));
+    compPanel.hidden=gif;
+    gifPanel.hidden=!gif;
+    stats.hidden=true;
+    if(curFile) setStatus(gif ? 'Ready — hit Make GIF.' : 'Ready — hit Compress.');
+  }
+  tabComp.addEventListener('click', function(){ setMode('compress'); });
+  tabGif.addEventListener('click', function(){ setMode('gif'); });
+  gDur.addEventListener('input', function(){ gDurVal.textContent=gDur.value+'s'; });
+
+  async function makeGif(){
+    if(!curFile || busy) return;
+    busy=true; busyLabel='Making GIF'; goGif.disabled=true; go.disabled=true;
+    dlGif.hidden=true; gifAgain.hidden=true; gifSizeRow.hidden=true; gifPrev.style.display='none';
+    try{
+      await warmEngine();
+      var start=Math.max(0, parseFloat(gStart.value)||0);
+      var dur=+gDur.value, w=+gWidth.value, fps=+gFps.value;
+      var ext=((curFile.name.split('.').pop()||'mp4')+'').toLowerCase();
+      var inName='in.'+(/^[a-z0-9]{2,5}$/.test(ext)?ext:'mp4');
+      var outBase=curFile.name.replace(/\.[^.]+$/,'')||'video';
+      gifName=outBase+'.gif';
+
+      setStatus('Reading file…'); setBar(-1);
+      var data=new Uint8Array(await curFile.arrayBuffer());
+      try{ await ffmpeg.deleteFile(inName); }catch(e){}
+      try{ await ffmpeg.deleteFile('palette.png'); }catch(e){}
+      try{ await ffmpeg.deleteFile('out.gif'); }catch(e){}
+      await ffmpeg.writeFile(inName, data);
+
+      var filt='fps='+fps+',scale='+w+':-1:flags=lanczos';
+      var t0=performance.now();
+      setStatus('Making GIF… pass 1 of 2 (palette)'); setBar(0);
+      var rc=await ffmpeg.exec(['-ss',String(start),'-t',String(dur),'-i',inName,
+        '-vf',filt+',palettegen','-y','palette.png']);
+      if(rc!==0) throw new Error('ffmpeg palette pass exited with code '+rc);
+      setStatus('Making GIF… pass 2 of 2'); setBar(0.5);
+      rc=await ffmpeg.exec(['-ss',String(start),'-t',String(dur),'-i',inName,'-i','palette.png',
+        '-lavfi',filt+'[x];[x][1:v]paletteuse','-y','out.gif']);
+      if(rc!==0) throw new Error('ffmpeg GIF pass exited with code '+rc);
+
+      var out=await ffmpeg.readFile('out.gif');
+      var blob=new Blob([out],{type:'image/gif'});
+      if(gifOutURL) URL.revokeObjectURL(gifOutURL);
+      gifOutURL=URL.createObjectURL(blob);
+      gifPrev.src=gifOutURL; gifPrev.style.display='block';
+      gifSize.textContent=mb(blob.size);
+      gifSizeRow.hidden=false;
+      dlGif.href=gifOutURL; dlGif.setAttribute('download', gifName); dlGif.hidden=false;
+      gifAgain.hidden=false;
+
+      var secs=((performance.now()-t0)/1000).toFixed(0);
+      setBar(1);
+      setStatus('GIF ready in '+secs+'s — tap Download.');
+      try{ await ffmpeg.deleteFile(inName); await ffmpeg.deleteFile('palette.png'); await ffmpeg.deleteFile('out.gif'); }catch(e){}
+      dlGif.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }catch(err){
+      console.error(err); setBar(null);
+      setStatus('Failed: '+((err&&err.message)||err));
+      toast('GIF failed — try a shorter clip or a different start time.');
+      try{ await ffmpeg.deleteFile('palette.png'); }catch(e){}
+    }finally{
+      busy=false; goGif.disabled=false; go.disabled=false;
+    }
+  }
+  goGif.addEventListener('click', makeGif);
+  gifAgain.addEventListener('click', function(){ again.click(); });
+
   // Hook used by automated verification; harmless in normal use.
   window.__vc = {
     handleFile: handleFile,
     compress: compress,
-    get state(){ return { busy:busy, hasFile:!!curFile, duration:duration, engineReady:!!ffmpeg }; }
+    makeGif: makeGif,
+    setMode: setMode,
+    get state(){ return { busy:busy, hasFile:!!curFile, duration:duration, engineReady:!!ffmpeg, mode:mode }; }
   };
 })();
 </script>
