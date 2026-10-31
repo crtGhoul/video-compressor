@@ -1,5 +1,7 @@
 # Free Video Compressor
 
+**Current version: v7**
+
 Paste a video, get a smaller MP4. No uploads, no accounts, no tracking — compression runs 100% in your browser.
 
 **Live demo:** https://video-compressor-e82.pages.dev
@@ -53,3 +55,16 @@ The page loads ffmpeg.wasm 0.12.10 as ES modules from unpkg (falling back to jsD
 MIT — do whatever you want with it. See [LICENSE](LICENSE).
 
 Built with [Muse](https://muse.ai) by [crtGhoul](https://github.com/crtGhoul).
+
+---
+
+## Velazquez Lab
+
+More free tools from Cesar Velazquez: [Velazquez Lab](https://velazquez-lab.pages.dev)
+
+- GitHub: https://github.com/crtGhoul
+- Codeberg: https://codeberg.org/crtGhoul
+- YouTube: https://www.youtube.com/@VelazquezLabs
+- Reddit: https://www.reddit.com/user/Manteqaada/
+
+> Have you used Muse? If not, you can earn a free 1B tokens when you sign up with my code: 0NS5DG — redeem it in Muse Settings > Redeem token within 48 hours of joining. Joining alone does not count.
