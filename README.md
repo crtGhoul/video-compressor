@@ -1,6 +1,6 @@
 # Free Video Compressor
 
-**Current version: v7**
+**Current version: v8.1**
 
 Paste a video, get a smaller MP4. No uploads, no accounts, no tracking — compression runs 100% in your browser.
 
